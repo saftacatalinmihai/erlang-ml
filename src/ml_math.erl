@@ -2,9 +2,14 @@
 
 -import(lists, [nth/2, seq/2]).
 
--export([sigmoid/1, hyp/3, hyp/2, gradient_descent/7, lin_reg_deriv/4, lin_reg_cost/3]).
+-compile(export_all).
+%-export([sigmoid/1, hyp/3, hyp/2, gradient_descent/7, lin_reg_deriv/4, lin_reg_cost/3]).
 
 sigmoid(Z) -> 1 / (1 + math:exp(-Z)).
+
+sigmoid_grad(Z) ->
+    Gz = sigmoid(Z),
+    Gz * (1 - Gz).
 
 hyp(W, A) -> hyp_acc(W, A, 0).
 hyp(W, A, F) -> F(hyp_acc(W, A, 0)).
