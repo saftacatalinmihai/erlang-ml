@@ -1,4 +1,4 @@
-neuralNet
+neuralNet - WIP (experimenting)
 =====
 
 An OTP application
