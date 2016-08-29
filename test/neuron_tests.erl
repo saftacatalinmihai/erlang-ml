@@ -39,21 +39,21 @@ neuron_gen_server_test_() ->
     end
   ].
 
-xor_test_() ->
-  {ok, Input1} = neuron:start_link([[0],[],[]]),
-  {ok, Input2} = neuron:start_link([[0],[],[]]),
-  {ok, N1} = neuron:start_link([[-30, 20, 20],[],[]]),
-  {ok, N2} = neuron:start_link([[30, -20, -20],[],[]]),
-  {ok, N3} = neuron:start_link([[-10, 20, 20],[],[]]),
-
-  neuron:connect(Input1, N1),
-  neuron:connect(Input2, N1),
-  neuron:connect(Input1, N2),
-  neuron:connect(Input2, N2),
-  neuron:connect(N1, N3),
-  neuron:connect(N2, N3),
-
-  fun () ->
-    neuron:pass(Input1, 0),
-    neuron:pass(Input2, 0)
-  end.
+%%xor_test_() ->
+%%  {ok, Input1} = neuron:start_link([[0],[],[]]),
+%%  {ok, Input2} = neuron:start_link([[0],[],[]]),
+%%  {ok, N1} = neuron:start_link([[-30, 20, 20],[],[]]),
+%%  {ok, N2} = neuron:start_link([[30, -20, -20],[],[]]),
+%%  {ok, N3} = neuron:start_link([[-10, 20, 20],[],[]]),
+%%
+%%  neuron:connect(Input1, N1),
+%%  neuron:connect(Input2, N1),
+%%  neuron:connect(Input1, N2),
+%%  neuron:connect(Input2, N2),
+%%  neuron:connect(N1, N3),
+%%  neuron:connect(N2, N3),
+%%
+%%  fun () ->
+%%    neuron:pass(Input1, 0),
+%%    neuron:pass(Input2, 0)
+%%  end.

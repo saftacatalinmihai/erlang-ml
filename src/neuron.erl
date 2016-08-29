@@ -69,7 +69,7 @@ handle_cast({connect_to_output, Receiver_PID}, State) ->
 handle_cast({connect_to_input, Sender_PID}, #state{weights=Weights, inputs=Inputs, output_Pids = Output_PIDs}) ->
   Combined_input = [{Sender_PID, 0.5} | Inputs],
   io:format("~w inputs connected to ~w: ~w~n", [self(), Sender_PID, Combined_input]),
-  {noreply, #state{weights = Weights, inputs = Combined_input, output_Pids = Output_PIDs}};
+  {noreply, #state{weights = [0.5 | Weights], inputs = Combined_input, output_Pids = Output_PIDs}};
 
 handle_cast({pass, Input_value}, State) ->
   lists:foreach(fun(Output_PID) ->
