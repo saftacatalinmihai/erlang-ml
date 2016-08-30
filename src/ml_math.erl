@@ -7,7 +7,7 @@
 
 sigmoid(Z) -> 1 / (1 + math:exp(-Z)).
 
-sigmoid_grad(Z) ->
+sigmoid_deriv(Z) ->
     Gz = sigmoid(Z),
     Gz * (1 - Gz).
 

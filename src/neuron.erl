@@ -7,15 +7,17 @@
 
 -record(state, {
   weights = [],
-  input_PIDs = [],
-  output_PIDs = [],
+  input_nodes = [],
+  output_nodes = [],
   output = 0
   }).
 
 %% API -----------------------------------------------------------------------------------------------------------------
 start_link([W, I, OP]) -> gen_server:start_link(?MODULE, [W, I, OP], []).
 
-stimulate(Pid, Inputs) -> gen_server:cast(Pid, {stimulate, Inputs}).
+stimulate(Node, Inputs) -> gen_server:cast(Node, {stimulate, Inputs}).
+
+learn(NodeBehind, Node, Delta) -> gen_server:cast(NodeBehind, {learn, {Node, Delta}}).
 
 connect(Sender_PID, Receiver_PID) ->
   gen_server:cast(Sender_PID, {connect_to_output, Receiver_PID}),
@@ -36,38 +38,43 @@ perceive(Inp, Weights) ->
     hyp([1|Inp], Weights).
 
 init([W, I, OP]) ->
-  {ok, #state{weights = W, input_PIDs = I, output_PIDs = OP }}.
+  {ok, #state{weights = W, input_nodes = I, output_nodes = OP }}.
 
-handle_cast({stimulate, Input}, #state{weights=Weights, input_PIDs =Inputs, output_PIDs = Output_PIDs}) ->
+handle_cast({stimulate, Input}, #state{weights=Weights, input_nodes =Inputs, output_nodes = Output_nodes}) ->
   New_inputs = replace_input(Inputs, Input),
   Output = perceive(convert_to_list(New_inputs), Weights),
 
-  if Output_PIDs =/= [] ->
+  if Output_nodes =/= [] ->
     lists:foreach(fun(Output_PID) ->
       neuron:stimulate(Output_PID, {self(), Output})
                   end,
-      Output_PIDs);
-    Output_PIDs =:= [] ->
+      Output_nodes);
+    Output_nodes =:= [] ->
       io:format("~n~w outputs: ~w", [self(), Output])
+%%      neuron:learn(self(), self(), 1)
+
   end,
-  {noreply, #state{weights = Weights, input_PIDs = New_inputs, output_PIDs = Output_PIDs, output = Output}};
+  {noreply, #state{weights = Weights, input_nodes = New_inputs, output_nodes = Output_nodes, output = Output}};
+
+handle_cast({learn, _Delta}, State) ->
+  {noreply, State};
 
 handle_cast({connect_to_output, Receiver_PID}, State) ->
-  Combined_output = [Receiver_PID | State#state.output_PIDs],
+  Combined_output = [Receiver_PID | State#state.output_nodes],
   io:format("~w output connected to ~w: ~w~n", [self(), Receiver_PID, Combined_output]),
-  {noreply, State#state{output_PIDs = Combined_output}};
+  {noreply, State#state{output_nodes = Combined_output}};
 
-handle_cast({connect_to_input, Sender_PID}, #state{weights=Weights, input_PIDs =Inputs, output_PIDs = Output_PIDs}) ->
-  Combined_input = [{Sender_PID, 0} | Inputs],
+handle_cast({connect_to_input, Sender_PID}, #state{weights=Weights, input_nodes =Inputs, output_nodes = Output_PIDs}) ->
+  Combined_input = [{Sender_PID, 0}| Inputs],
   io:format("~w inputs connected to ~w: ~w~n", [self(), Sender_PID, Combined_input]),
-  {noreply, #state{weights = [rand:uniform() | Weights], input_PIDs = Combined_input, output_PIDs = Output_PIDs}};
+  {noreply, #state{weights = [rand:uniform() | Weights], input_nodes = Combined_input, output_nodes = Output_PIDs}};
 
 handle_cast({pass, Input_value}, State) ->
   lists:foreach(fun(Output_PID) ->
     io:format("Stimulating ~w with ~w~n", [Output_PID, Input_value]),
     neuron:stimulate(Output_PID, {self(), Input_value})
                 end,
-    State#state.output_PIDs),
+    State#state.output_nodes),
   {noreply, State#state{output=Input_value}};
 
 handle_cast(_,_) ->

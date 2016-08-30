@@ -31,5 +31,5 @@ gradient_descent_lin_reg_test_()->
     ].
 
 sigmoid_grad_test_() ->
-    [fun () -> ?assert( ml_math:sigmoid_grad(2) =:= 0.10499358540350662) end ].
+    [fun () -> ?assert( ml_math:sigmoid_deriv(2) =:= 0.10499358540350662) end ].
 
