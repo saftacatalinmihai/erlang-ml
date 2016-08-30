@@ -9,7 +9,7 @@
   weights = [],
   input_nodes = [],
   output_nodes = [],
-  output = 0
+  output_value = 0
   }).
 
 %% API -----------------------------------------------------------------------------------------------------------------
@@ -48,19 +48,49 @@ handle_cast({stimulate, Input}, #state{weights=Weights, input_nodes =Inputs, out
     lists:foreach(fun(Output_PID) ->
       neuron:stimulate(Output_PID, {self(), Output})
                   end,
-      Output_nodes);
+      convert_to_keys(Output_nodes));
     Output_nodes =:= [] ->
-      io:format("~n~w outputs: ~w", [self(), Output])
-%%      neuron:learn(self(), self(), 1)
+      io:format("~n~w outputs: ~w", [self(), Output]),
+      neuron:learn(self(), self(), 1)
 
   end,
-  {noreply, #state{weights = Weights, input_nodes = New_inputs, output_nodes = Output_nodes, output = Output}};
+  {noreply, #state{weights = Weights, input_nodes = New_inputs, output_nodes = Output_nodes, output_value = Output}};
 
-handle_cast({learn, _Delta}, State) ->
-  {noreply, State};
+handle_cast({learn, Backprop}, #state{weights=Weights, input_nodes = Inputs, output_nodes = Outputs}) ->
+
+  Learning_rate = 0.5,
+
+  % Calculate the correct sensitivities
+  io:format("~p~n", [Outputs]),
+  io:format("~p~n", [Backprop]),
+  New_outputs = add_delta(Outputs, Backprop),
+  Output_value = perceive(convert_to_list(Inputs), Weights),
+  Derv_value = ml_math:hyp(Weights, [1|convert_to_values(Inputs)], fun ml_math:sigmoid_deriv/1),
+  Delta = calculate_delta(Backprop, Inputs, New_outputs,
+    Output_value, Derv_value),
+  io:format("(~w) New Sensitivities: ~w~n", [self(), New_outputs]),
+  io:format("(~w) Calculated Sensitivity: ~w~n", [self(), Delta]),
+
+  % Adjust all the weights
+  Weight_adjustments = lists:map(fun(Input) ->
+    Learning_rate * Delta * Input
+                                 end,
+    convert_to_values(Inputs)),
+  New_weights = lists:zipwith(fun(W, D) -> W + D end, tl(Weights), Weight_adjustments),
+  io:format("(~w) Adjusted Weights: ~w~n", [self(), Weights]),
+
+  % propagate sensitivities and associated weights back to the previous layer
+%%  lists:foreach(
+%%    fun ({Weight, Input_PID}) ->
+%%      neuron:learn(Input_PID, self(), Delta * Weight)
+%%    end,
+%%    lists:zip(New_weights, convert_to_keys(Inputs)),
+%%  ),
+%%  {noreply,  #state{weights = Weights, input_nodes = Inputs, output_nodes = Outputs, output_value = Output_value}};
+  {noreply, #state{weights = New_weights, input_nodes = Inputs, output_nodes = New_outputs, output_value = Output_value}};
 
 handle_cast({connect_to_output, Receiver_PID}, State) ->
-  Combined_output = [Receiver_PID | State#state.output_nodes],
+  Combined_output = [{Receiver_PID,1} | State#state.output_nodes],
   io:format("~w output connected to ~w: ~w~n", [self(), Receiver_PID, Combined_output]),
   {noreply, State#state{output_nodes = Combined_output}};
 
@@ -74,8 +104,8 @@ handle_cast({pass, Input_value}, State) ->
     io:format("Stimulating ~w with ~w~n", [Output_PID, Input_value]),
     neuron:stimulate(Output_PID, {self(), Input_value})
                 end,
-    State#state.output_nodes),
-  {noreply, State#state{output=Input_value}};
+    convert_to_keys(State#state.output_nodes)),
+  {noreply, State#state{output_value =Input_value}};
 
 handle_cast(_,_) ->
   erlang:error(not_implemented).
@@ -84,7 +114,7 @@ handle_call({set_weights, W }, _, State) ->
   {reply, ok, State#state{weights = W}};
 
 handle_call(get_output, _, State) ->
-  {reply, State#state.output, State};
+  {reply, State#state.output_value, State};
 
 handle_call(_, _, _) ->
   erlang:error(not_implemented).
@@ -104,6 +134,24 @@ code_change(_OldVsn, State, _Extra) ->
 replace_input(Inputs, Input) ->
   {Input_PID, _} = Input,
   lists:keyreplace(Input_PID, 1, Inputs, Input).
+
+% adds the propagating sensitivity to the Sensitivities Hash
+add_delta(Deltas, Backprop) when Deltas =/= [] ->
+  replace_input(Deltas, Backprop);
+add_delta(Deltas, _Backprop) when Deltas =:= [] ->
+  [].
+
+% Calculates the sensitivity of this particular node
+calculate_delta(_, Inputs, Outputs, _, _)
+  when Outputs =/= [], Inputs =:= [] -> % When the node is an input node:
+  null;
+calculate_delta(Delta, Inputs, Sensitivities, Output_value, Derv_value)
+  when Sensitivities =:= [], Inputs =/= [] -> % When the node is an output node:
+  {_, Training_value} = Delta,
+  (Training_value - Output_value) * Derv_value;
+calculate_delta(_, Inputs, Outputs, _, Derv_value)
+  when Outputs =/= [], Inputs =/= [] -> % When the node is a hidden node:
+  Derv_value * lists:foldl(fun(E, T) -> E + T end, 0, convert_to_values(Outputs)).
 
 convert_to_list(Inputs) ->
   lists:map(fun(Tup) ->
