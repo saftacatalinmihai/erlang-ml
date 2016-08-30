@@ -11,12 +11,16 @@ sigmoid_grad(Z) ->
     Gz = sigmoid(Z),
     Gz * (1 - Gz).
 
-hyp(W, A) -> hyp_acc(W, A, 0).
-hyp(W, A, F) -> F(hyp_acc(W, A, 0)).
+hyp(W, A) ->
+  lists:sum(
+    lists:zipwith(
+      fun (X,Y) -> X * Y end,
+      W,A
+    )
+  ).
 
-hyp_acc([],[], Acc) -> Acc;
-hyp_acc([W|WT], [A|AT], Acc) ->
-    hyp_acc(WT, AT, Acc + W*A).
+hyp(W, A, F) -> F(hyp(W, A)).
+
 
 gradient_descent(Weights, _, _, _, _, _, 0) -> Weights;
 gradient_descent(Weights, X, Y, Alpha, _CostF, DerivF, Iterations) ->

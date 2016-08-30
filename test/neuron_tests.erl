@@ -54,11 +54,21 @@ xor_test_() ->
   neuron:connect(N1, N3),
   neuron:connect(N2, N3),
 
-  neuron:set_weights(N1, [-30, 20, 20]),
-  neuron:set_weights(N2, [30, -20, -20]),
-  neuron:set_weights(N3, [-10, 20, 20]),
+  neuron:set_weights(N1, [-10, 20, 20]),
+  neuron:set_weights(N2, [-30, 20, 20]),
+  neuron:set_weights(N3, [10, 20, -20]),
 
-  fun () ->
-    neuron:pass(Input1, 0),
-    neuron:pass(Input2, 0)
-  end.
+  [
+    fun () ->
+      neuron:pass(Input1, 0),
+      neuron:pass(Input2, 1),
+      timer:sleep(100),
+      ?assert(neuron:get_output(N3) < 0.0001)
+    end,
+    fun () ->
+      neuron:pass(Input1, 0),
+      neuron:pass(Input2, 0),
+      timer:sleep(100),
+      ?assert(neuron:get_output(N3) > 0.999)
+    end
+  ].
