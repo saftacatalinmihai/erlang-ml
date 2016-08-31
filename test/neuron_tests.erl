@@ -68,3 +68,62 @@ xor_test_() ->
       ?assert(neuron:get_output(N3) > 0.999)
     end
   ].
+
+learn_test_() ->
+  {ok, Input1} = neuron:start_link(),
+  {ok, Input2} = neuron:start_link(),
+  {ok, N1} = neuron:start_link(),
+  {ok, N2} = neuron:start_link(),
+  {ok, N3} = neuron:start_link(),
+  {ok, N4} = neuron:start_link(),
+  {ok, N5} = neuron:start_link(),
+
+  neuron:connect(Input1, N1),
+  neuron:connect(Input2, N1),
+  neuron:connect(Input1, N2),
+  neuron:connect(Input2, N2),
+  neuron:connect(Input1, N3),
+  neuron:connect(Input2, N3),
+  neuron:connect(Input1, N4),
+  neuron:connect(Input2, N4),
+  neuron:connect(N1, N5),
+  neuron:connect(N2, N5),
+  neuron:connect(N3, N5),
+  neuron:connect(N4, N5),
+
+  F = fun (I1,I2, E) ->
+    neuron:pass(Input1, I1),
+    neuron:pass(Input2, I2),
+    timer:sleep(50),
+    neuron:learn(N5, E)
+  end,
+
+  L = [
+    fun() -> F(1,1,1) end,
+    fun() -> F(1,0,0) end,
+    fun() -> F(0,1,0) end,
+    fun() -> F(0,0,1) end
+  ],
+
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 600)]),
+  L3 = [X||{_,X} <- lists:sort([ {random:uniform(), N} || N <- L2])],
+
+  lists:foreach(
+    fun(F) -> F() end,
+    L3
+  ),
+
+  [
+    fun () ->
+      neuron:pass(Input1, 0),
+      neuron:pass(Input2, 1),
+      timer:sleep(100),
+      ?assert(neuron:get_output(N3) < 0.0001)
+    end,
+    fun () ->
+      neuron:pass(Input1, 0),
+      neuron:pass(Input2, 0),
+      timer:sleep(100),
+      ?assert(neuron:get_output(N3) > 0.999)
+    end
+  ].
