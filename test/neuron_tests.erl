@@ -161,12 +161,12 @@ learn_test() ->
       neuron:pass(Input1, 0),
       neuron:pass(Input2, 1),
       timer:sleep(100),
-      ?assert(neuron:get_output(N1) < 0.0001)
+      ?assert(neuron:get_output(N1) < 0.01)
     end,
     fun () ->
       neuron:pass(Input1, 0),
       neuron:pass(Input2, 0),
       timer:sleep(100),
-      ?assert(neuron:get_output(N1) > 0.999)
+      ?assert(neuron:get_output(N1) > 0.9)
     end
   ].
