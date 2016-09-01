@@ -76,11 +76,11 @@ learn_single_neuron_test_() ->
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
+  timer:sleep(30),
 
   F = fun (I1,I2, E) ->
-    neuron:pass(Input1, I1),
-    neuron:pass(Input2, I2),
-    timer:sleep(15),
+    neuron:pass(Input1, I1, call),
+    neuron:pass(Input2, I2, call),
     neuron:learn(N1, E)
   end,
 
@@ -91,7 +91,7 @@ learn_single_neuron_test_() ->
     fun() -> F(0,0,0) end
   ],
 
-  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 500)]),
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 1000)]),
   L3 = [X||{_,X} <- lists:sort([ {rand:uniform(), N} || N <- L2])],
 
   lists:foreach(
@@ -99,24 +99,20 @@ learn_single_neuron_test_() ->
     L3
   ),
 
-%%  neuron:pass(Input1, 0), neuron:pass(Input2, 0).
-
   [
     fun () ->
-      neuron:pass(Input1, 0),
-      neuron:pass(Input2, 1),
-      timer:sleep(100),
-      ?assert(neuron:get_output(N1) < 0.01)
+      neuron:pass(Input1, 0, call),
+      neuron:pass(Input2, 1, call),
+      ?assert(neuron:get_output(N1) < 0.1)
     end,
     fun () ->
-      neuron:pass(Input1, 1),
-      neuron:pass(Input2, 1),
-      timer:sleep(100),
+      neuron:pass(Input1, 1, call),
+      neuron:pass(Input2, 1, call),
       ?assert(neuron:get_output(N1) > 0.9)
     end
   ].
 
-learn_test() ->
+learn_test_() ->
   {ok, Input1} = neuron:start_link(),
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
@@ -130,13 +126,12 @@ learn_test() ->
 
   neuron:connect(N1, N3),
   neuron:connect(N2, N3),
+  timer:sleep(30),
 
   F = fun (I1,I2, E) ->
-    neuron:pass(Input1, I1),
-    neuron:pass(Input2, I2),
-    timer:sleep(10),
-    neuron:learn(N3, E),
-    timer:sleep(10)
+    neuron:pass(Input1, I1, call),
+    neuron:pass(Input2, I2, call),
+    neuron:learn(N3, E)
   end,
 
   L = [
@@ -146,7 +141,7 @@ learn_test() ->
     fun() -> F(0,0,1) end
   ],
 
-  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 500)]),
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 1500)]),
   L3 = [X||{_,X} <- lists:sort([ {rand:uniform(), N} || N <- L2])],
 
   lists:foreach(
@@ -154,19 +149,15 @@ learn_test() ->
     L3
   ),
 
-%%  neuron:pass(Input1, 0), neuron:pass(Input2, 0).
-
   [
     fun () ->
-      neuron:pass(Input1, 0),
-      neuron:pass(Input2, 1),
-      timer:sleep(100),
-      ?assert(neuron:get_output(N1) < 0.01)
+      neuron:pass(Input1, 0, call),
+      neuron:pass(Input2, 1, call),
+      ?assert(neuron:get_output(N1) < 0.1)
     end,
     fun () ->
-      neuron:pass(Input1, 0),
-      neuron:pass(Input2, 0),
-      timer:sleep(100),
+      neuron:pass(Input1, 0, call),
+      neuron:pass(Input2, 0, call),
       ?assert(neuron:get_output(N1) > 0.9)
     end
   ].

@@ -25,20 +25,22 @@
 %% API -----------------------------------------------------------------------------------------------------------------
 start_link() -> gen_server:start_link(?MODULE, [], []).
 
-stimulate(Node, FromNode, Activation, Expected) -> gen_server:cast(Node, {stimulate, FromNode, Activation, Expected}).
+stimulate(Node, FromNode, Activation) -> gen_server:cast(Node, {stimulate, FromNode, Activation}).
+stimulate(Node, FromNode, Activation, cast) -> gen_server:cast(Node, {stimulate, FromNode, Activation});
+stimulate(Node, FromNode, Activation, call) -> gen_server:call(Node, {stimulate, FromNode, Activation}).
 
 learn(BackNode, From_Node, Backprop) ->
-  gen_server:cast(BackNode, {learn, From_Node, Backprop}).
+  gen_server:call(BackNode, {learn, From_Node, Backprop}).
 
 learn(Node, Expected) ->
-  gen_server:cast(Node, {learn, Expected}).
+  gen_server:call(Node, {learn, Expected}).
 
 connect(Input_node, Output_Node) ->
   gen_server:cast(Input_node, {connect_to_output, Output_Node}),
   gen_server:cast(Output_Node, {connect_to_input, Input_node}).
 
-pass(Pid, Input, Expected) -> gen_server:cast(Pid, {pass, Input, Expected}).
-pass(Pid, Input          ) -> gen_server:cast(Pid, {pass, Input, null    }).
+pass(Pid, Input, call) -> gen_server:call(Pid, {pass, Input}).
+pass(Pid, Input      ) -> gen_server:cast(Pid, {pass, Input}).
 
 %% Debugging api
 set_weights(Pid, W) -> gen_server:call(Pid, {set_weights, W }).
@@ -56,87 +58,9 @@ perceive(Inp, Weights) ->
 init([]) ->
   {ok, #state{}}.
 
-handle_cast({stimulate, FromNode, Activation, Expected}, State) ->
-  #{FromNode := InputNode} = State#state.inputs,
+handle_cast({stimulate, FromNode, Activation}, State) ->
+  {noreply, stimulate_(FromNode, Activation, State, cast)};
 
-  New_Inputs = maps:update(
-    FromNode,
-    InputNode#input{activation = Activation},
-    State#state.inputs
-  ),
-
-  {New_inputs_received, NA} = case State#state.inputs_received =:= maps:size(State#state.inputs) - 1 of
-     true ->
-       InputList = maps:values(New_Inputs),
-       Neuron_Activation = perceive(
-         lists:map(fun(I) -> I#input.activation end, InputList),
-         lists:map(fun(I) -> I#input.weight     end, InputList)
-       ),
-
-%%       case maps:size(State#state.outputs) of
-%%         0 -> io:format("Output: ~p~n", [Neuron_Activation]);
-%%         _ -> case Expected =/= null of
-%%                true -> neuron:learn(self(), Expected);
-%%                _    -> null
-%%              end
-%%       end,
-
-       lists:foreach(
-         fun(Output_Node) ->
-            neuron:stimulate(Output_Node, self(), Neuron_Activation, Expected)
-          end,
-          maps:keys(State#state.outputs)
-       ),
-       {1, Neuron_Activation};
-     _ ->
-       {State#state.inputs_received + 1, State#state.activation}
-  end,
-
-  {noreply, State#state{
-    inputs = New_Inputs,
-    inputs_received = New_inputs_received,
-    activation = NA
-    }};
-
-handle_cast({learn, Expected}, State) ->
-
-  Deriv = sig_prime(State),
-
-  Delta = (Expected - State#state.activation),
-  io:format("--Error: ~p~n", [Delta*Delta]),
-
-  New_Inputs = calculate_new_weights(State, Delta, Deriv),
-
-  backprop(State, Delta, New_Inputs),
-
-  {noreply, State#state{inputs = New_Inputs}};
-
-handle_cast({learn, FromNode, BackProp}, State) ->
-%%  io:format("Learing: ~p~n", [[FromNode, BackProp]]),
-
-  New_outputs = maps:update(
-    FromNode,
-    #output{backprop = BackProp},
-    State#state.outputs
-  ),
-
-  {New_outputs_received, NI} = case State#state.outputs_received =:= maps:size(State#state.outputs) - 1 of
-    true ->
-      Deriv = sig_prime(State),
-
-      Delta = lists:sum(
-        lists:map(fun(O) -> O#output.backprop end, maps:values(New_outputs))
-      ),
-
-      New_Inputs = calculate_new_weights(State, Delta, Deriv),
-
-      backprop(State, Delta, New_Inputs),
-      {0, New_Inputs};
-     false ->
-       {State#state.outputs_received + 1, State#state.inputs}
-  end,
-
-  {noreply, State#state{inputs = NI, outputs = New_outputs, outputs_received = New_outputs_received}};
 
 handle_cast({connect_to_output, Output_node}, State) ->
   NewState = State#state{
@@ -152,18 +76,58 @@ handle_cast({connect_to_input, Input_node}, State) ->
   io:format("~w inputs connected to ~w: ~w~n", [self(), Input_node, maps:keys(NewState#state.inputs)]),
   {noreply, NewState};
 
-handle_cast({pass, Input_value, Expected}, State) ->
-  lists:foreach(
-    fun(Output_Node) ->
-%%      io:format("Stimulating ~w with ~w~n", [Output_Node, Input_value]),
-      neuron:stimulate(Output_Node, self(), Input_value, Expected)
-    end,
-    maps:keys(State#state.outputs)),
-
-  {noreply, State#state{activation = Input_value}};
+handle_cast({pass, Input_value}, State) ->
+  {noreply, pass_(Input_value, State, cast)};
 
 handle_cast(_,_) ->
   erlang:error(not_implemented).
+
+handle_call({stimulate, FromNode, Activation}, _From, State) ->
+  {reply, ok, stimulate_(FromNode, Activation, State, call)};
+
+handle_call({pass, Input_value}, _, State) ->
+  {reply, ok, pass_(Input_value, State, call)};
+
+
+handle_call({learn, Expected}, _From, State) ->
+
+  Deriv = sig_prime(State),
+
+  Delta = (Expected - State#state.activation),
+  io:format("--Error: ~p~n", [Delta*Delta]),
+
+  New_Inputs = calculate_new_weights(State, Delta, Deriv),
+
+  backprop(State, Delta, New_Inputs),
+
+  {reply, ok, State#state{inputs = New_Inputs}};
+
+handle_call({learn, FromNode, BackProp}, _From, State) ->
+%%  io:format("Learing: ~p~n", [[FromNode, BackProp]]),
+
+  New_outputs = maps:update(
+    FromNode,
+    #output{backprop = BackProp},
+    State#state.outputs
+  ),
+
+  {New_outputs_received, NI} = case State#state.outputs_received =:= maps:size(State#state.outputs) - 1 of
+                                 true ->
+                                   Deriv = sig_prime(State),
+
+                                   Delta = lists:sum(
+                                     lists:map(fun(O) -> O#output.backprop end, maps:values(New_outputs))
+                                   ),
+
+                                   New_Inputs = calculate_new_weights(State, Delta, Deriv),
+
+                                   backprop(State, Delta, New_Inputs),
+                                   {0, New_Inputs};
+                                 false ->
+                                   {State#state.outputs_received + 1, State#state.inputs}
+                               end,
+
+  {reply, ok, State#state{inputs = NI, outputs = New_outputs, outputs_received = New_outputs_received}};
 
 handle_call({set_weights, W}, _, State) ->
   New_State = lists:foldl(
@@ -228,3 +192,45 @@ calculate_new_weights(State, Delta, Deriv)->
     end,
     State#state.inputs
   ).
+
+stimulate_(FromNode, Activation, State, Sync) ->
+  #{FromNode := InputNode} = State#state.inputs,
+
+  New_Inputs = maps:update(
+    FromNode,
+    InputNode#input{activation = Activation},
+    State#state.inputs
+  ),
+
+  {New_inputs_received, NA} = case State#state.inputs_received =:= maps:size(State#state.inputs) - 1 of
+                                true ->
+                                  InputList = maps:values(New_Inputs),
+                                  Neuron_Activation = perceive(
+                                    lists:map(fun(I) -> I#input.activation end, InputList),
+                                    lists:map(fun(I) -> I#input.weight     end, InputList)
+                                  ),
+
+                                  lists:foreach(
+                                    fun(Output_Node) ->
+                                      neuron:stimulate(Output_Node, self(), Neuron_Activation, Sync)
+                                    end,
+                                    maps:keys(State#state.outputs)
+                                  ),
+                                  {1, Neuron_Activation};
+                                _ ->
+                                  {State#state.inputs_received + 1, State#state.activation}
+                              end,
+
+  State#state{
+    inputs = New_Inputs,
+    inputs_received = New_inputs_received,
+    activation = NA
+  }.
+
+pass_(Input_value, State, Sync) ->
+  lists:foreach(
+    fun(Output_Node) ->
+      neuron:stimulate(Output_Node, self(), Input_value, Sync)
+    end,
+    maps:keys(State#state.outputs)),
+  State#state{activation = Input_value}.
