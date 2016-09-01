@@ -80,7 +80,7 @@ learn_single_neuron_test_() ->
   F = fun (I1,I2, E) ->
     neuron:pass(Input1, I1),
     neuron:pass(Input2, I2),
-    timer:sleep(10),
+    timer:sleep(15),
     neuron:learn(N1, E)
   end,
 
@@ -98,6 +98,8 @@ learn_single_neuron_test_() ->
     fun(Fn) -> Fn() end,
     L3
   ),
+
+%%  neuron:pass(Input1, 0), neuron:pass(Input2, 0).
 
   [
     fun () ->
@@ -120,33 +122,21 @@ learn_test() ->
   {ok, N1} = neuron:start_link(),
   {ok, N2} = neuron:start_link(),
   {ok, N3} = neuron:start_link(),
-%%  {ok, N4} = neuron:start_link(),
-%%  {ok, N5} = neuron:start_link(),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
   neuron:connect(Input1, N2),
   neuron:connect(Input2, N2),
-%%  neuron:connect(Input1, N3),
-%%  neuron:connect(Input2, N3),
-%%  neuron:connect(Input1, N4),
-%%  neuron:connect(Input2, N4),
-%%  neuron:connect(N1, N5),
-%%  neuron:connect(N2, N5),
-%%  neuron:connect(N3, N5),
-%%  neuron:connect(N4, N5),
 
   neuron:connect(N1, N3),
   neuron:connect(N2, N3),
 
   F = fun (I1,I2, E) ->
     neuron:pass(Input1, I1),
-%%    timer:sleep(10),
     neuron:pass(Input2, I2),
     timer:sleep(10),
-%%    neuron:learn(N1, E)
-    neuron:learn(N3, E)
-%%    neuron:learn(N5, E)
+    neuron:learn(N3, E),
+    timer:sleep(10)
   end,
 
   L = [

@@ -17,6 +17,8 @@
 -record( state, {
   inputs     = #{1 => #input{activation = 1}},  %% map between input Node and record. Starts with the bias term id = 1
   outputs    = #{},                             %% map between output Node and record for backpropagation
+  inputs_received  = 1,
+  outputs_received = 0,
   activation = 0                                %% last activation of this node
 }).
 
@@ -63,28 +65,38 @@ handle_cast({stimulate, FromNode, Activation, Expected}, State) ->
     State#state.inputs
   ),
 
-  InputList = maps:values(New_Inputs),
-  Neuron_Activation = perceive(
-    lists:map(fun(I) -> I#input.activation end, InputList),
-    lists:map(fun(I) -> I#input.weight     end, InputList)
-  ),
+  {New_inputs_received, NA} = case State#state.inputs_received =:= maps:size(State#state.inputs) - 1 of
+     true ->
+       InputList = maps:values(New_Inputs),
+       Neuron_Activation = perceive(
+         lists:map(fun(I) -> I#input.activation end, InputList),
+         lists:map(fun(I) -> I#input.weight     end, InputList)
+       ),
 
-  case maps:size(State#state.outputs) of
-    0 -> io:format("Output: ~p~n", [Neuron_Activation]);
-    _ -> case Expected =/= null of
-           true -> neuron:learn(self(), Expected);
-           _    -> null
-         end
+%%       case maps:size(State#state.outputs) of
+%%         0 -> io:format("Output: ~p~n", [Neuron_Activation]);
+%%         _ -> case Expected =/= null of
+%%                true -> neuron:learn(self(), Expected);
+%%                _    -> null
+%%              end
+%%       end,
+
+       lists:foreach(
+         fun(Output_Node) ->
+            neuron:stimulate(Output_Node, self(), Neuron_Activation, Expected)
+          end,
+          maps:keys(State#state.outputs)
+       ),
+       {1, Neuron_Activation};
+     _ ->
+       {State#state.inputs_received + 1, State#state.activation}
   end,
 
-  lists:foreach(
-    fun(Output_Node) ->
-      neuron:stimulate(Output_Node, self(), Neuron_Activation, Expected)
-    end,
-    maps:keys(State#state.outputs)
-  ),
-
-  {noreply, State#state{inputs = New_Inputs, activation = Neuron_Activation}};
+  {noreply, State#state{
+    inputs = New_Inputs,
+    inputs_received = New_inputs_received,
+    activation = NA
+    }};
 
 handle_cast({learn, Expected}, State) ->
 
@@ -108,17 +120,23 @@ handle_cast({learn, FromNode, BackProp}, State) ->
     State#state.outputs
   ),
 
-  Deriv = sig_prime(State),
+  {New_outputs_received, NI} = case State#state.outputs_received =:= maps:size(State#state.outputs) - 1 of
+    true ->
+      Deriv = sig_prime(State),
 
-  Delta = lists:sum(
-    lists:map(fun(O) -> O#output.backprop end, maps:values(New_outputs))
-  ),
+      Delta = lists:sum(
+        lists:map(fun(O) -> O#output.backprop end, maps:values(New_outputs))
+      ),
 
-  New_Inputs = calculate_new_weights(State, Delta, Deriv),
+      New_Inputs = calculate_new_weights(State, Delta, Deriv),
 
-  backprop(State, Delta, New_Inputs),
+      backprop(State, Delta, New_Inputs),
+      {0, New_Inputs};
+     false ->
+       {State#state.outputs_received + 1, State#state.inputs}
+  end,
 
-  {noreply, State#state{inputs = New_Inputs, outputs = New_outputs}};
+  {noreply, State#state{inputs = NI, outputs = New_outputs, outputs_received = New_outputs_received}};
 
 handle_cast({connect_to_output, Output_node}, State) ->
   NewState = State#state{
@@ -205,7 +223,7 @@ calculate_new_weights(State, Delta, Deriv)->
   maps:map(
     fun (_, Input) ->
       Input#input{
-        weight = Input#input.weight + 0.5 * Delta * Deriv * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
+        weight = Input#input.weight + 1 * Delta * Deriv * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
       }
     end,
     State#state.inputs
