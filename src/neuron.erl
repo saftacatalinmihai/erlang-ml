@@ -68,56 +68,35 @@ handle_cast({stimulate, FromNode, Activation}, State) ->
     lists:map(fun(I) -> I#input.weight     end, InputList)
   ),
 
-%%  case maps:size(State#state.outputs) of
-%%    0 ->
-%%      io:format("~n~w Activation: ~w", [self(), Neuron_Activation]),
-%%      lists:foreach(
-%%          fun(InputNode) ->
-%%            neuron:learn(InputNode, self(), Neuron_Activation - Expected)
-%%          end,
-%%        maps:keys(State#state.outputs)
-%%      );
-%%    _ ->
-      lists:foreach(
-        fun(Output_Node) ->
-          neuron:stimulate(Output_Node, self(), Neuron_Activation)
-        end,
-        maps:keys(State#state.outputs)
-      ),
-%%  end,
+  case maps:size(State#state.outputs) of
+    0 -> io:format("Output: ~p~n", [Neuron_Activation]);
+    _ -> null
+  end,
+
+  lists:foreach(
+    fun(Output_Node) ->
+      neuron:stimulate(Output_Node, self(), Neuron_Activation)
+    end,
+    maps:keys(State#state.outputs)
+  ),
+
   {noreply, State#state{inputs = New_Inputs, activation = Neuron_Activation}};
 
 handle_cast({learn, Expected}, State) ->
-  Deriv = hyp_deriv(
-    lists:map(fun(I) -> I#input.activation end, maps:values(State#state.inputs)),
-    lists:map(fun(I) -> I#input.weight     end, maps:values(State#state.inputs))
-  ),
-  Delta = (Expected - State#state.activation) * Deriv,
-  io:format("--Error: ~p~n", [(Expected - State#state.activation)*(Expected - State#state.activation)]),
-  New_Inputs = maps:map(
-    fun (_, Input) ->
-      Input#input{
-        weight = Input#input.weight + 0.1 * Delta * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
-      }
-    end,
-    State#state.inputs
-  ),
 
-  lists:foreach(
-    fun (Input_Node) ->
-      Node = maps:get(Input_Node, New_Inputs),
-      neuron:learn(
-        Input_Node,
-        self(),
-        Node#input.weight * Delta
-      )
-    end,
-    lists:filter(fun(K) -> K =/= 1 end, maps:keys(New_Inputs))              %% remove the bias input node
-  ),
+  Deriv = sig_prime(State),
+
+  Delta = (Expected - State#state.activation),
+  io:format("--Error: ~p~n", [Delta*Delta]),
+
+  New_Inputs = calculate_new_weights(State, Delta, Deriv),
+
+  backprop(State, Delta, New_Inputs),
+
   {noreply, State#state{inputs = New_Inputs}};
 
 handle_cast({learn, FromNode, BackProp}, State) ->
-  io:format("Learing: ~p~n", [[FromNode, BackProp]]),
+%%  io:format("Learing: ~p~n", [[FromNode, BackProp]]),
 
   New_outputs = maps:update(
     FromNode,
@@ -125,33 +104,16 @@ handle_cast({learn, FromNode, BackProp}, State) ->
     State#state.outputs
   ),
 
-  Deriv = hyp_deriv(
-    lists:map(fun(I) -> I#input.activation end, maps:values(State#state.inputs)),
-    lists:map(fun(I) -> I#input.weight     end, maps:values(State#state.inputs))
-  ),
-  Delta = Deriv * lists:sum(
-    lists:map(fun ({_,Output}) -> Output#output.backprop end, maps:to_list(State#state.outputs))
-  ),
-  New_Inputs = maps:map(
-    fun (_, Input) ->
-      Input#input{
-        weight = Input#input.weight + 0.1 * Delta * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
-      }
-    end,
-    State#state.inputs
+  Deriv = sig_prime(State),
+
+  Delta = lists:sum(
+    lists:map(fun(O) -> O#output.backprop end, maps:values(State#state.outputs))
   ),
 
-  lists:foreach(
-    fun (Input_Node) ->
-      Node = maps:get(Input_Node, New_Inputs),
-      neuron:learn(
-        Input_Node,
-        self(),
-        Node#input.weight * Delta
-      )
-    end,
-    lists:filter(fun(K) -> K =/= 1 end, maps:keys(New_Inputs))              %% remove the bias input node
-  ),
+  New_Inputs = calculate_new_weights(State, Delta, Deriv),
+
+  backprop(State, Delta, New_Inputs),
+
   {noreply, State#state{inputs = New_Inputs, outputs = New_outputs}};
 
 handle_cast({connect_to_output, Output_node}, State) ->
@@ -171,7 +133,7 @@ handle_cast({connect_to_input, Input_node}, State) ->
 handle_cast({pass, Input_value}, State) ->
   lists:foreach(
     fun(Output_Node) ->
-      io:format("Stimulating ~w with ~w~n", [Output_Node, Input_value]),
+%%      io:format("Stimulating ~w with ~w~n", [Output_Node, Input_value]),
       neuron:stimulate(Output_Node, self(), Input_value)
     end,
     maps:keys(State#state.outputs)),
@@ -215,3 +177,32 @@ terminate(Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+sig_prime(State) ->
+  Inputs = maps:to_list(State#state.inputs),
+  A = lists:map(fun({_, I}) -> I#input.activation end, Inputs),
+  W = lists:map(fun({_, I}) -> I#input.weight     end, Inputs),
+  hyp_deriv(A, W).
+
+backprop(State, Delta, _New_inputs) ->
+  lists:foreach(
+    fun (Input_Node) ->
+      Node = maps:get(Input_Node, State#state.inputs),
+      neuron:learn(
+        Input_Node,
+        self(),
+        Node#input.weight * Delta
+      )
+    end,
+    lists:filter(fun(K) -> K =/= 1 end, maps:keys(State#state.inputs))              %% remove the bias input node
+  ).
+
+calculate_new_weights(State, Delta, Deriv)->
+  maps:map(
+    fun (_, Input) ->
+      Input#input{
+        weight = Input#input.weight + 1 * Delta * Deriv * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
+      }
+    end,
+    State#state.inputs
+  ).
