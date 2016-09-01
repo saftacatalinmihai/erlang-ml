@@ -6,7 +6,7 @@
 -behavior(gen_server).
 
 -record( input, {
-  weight      = rand:uniform(), %% the weight associated to the input stimulus
+  weight      = rand:uniform() * 0.12, %% the weight associated to the input stimulus
   activation  = 0               %% the last activation of input node
 }).
 
@@ -94,7 +94,7 @@ handle_call({learn, Expected}, _From, State) ->
   Deriv = sig_prime(State),
 
   Delta = (Expected - State#state.activation),
-  io:format("--Error: ~p~n", [Delta*Delta]),
+%%  io:format("--Error: ~p~n", [Delta*Delta]),
 
   New_Inputs = calculate_new_weights(State, Delta, Deriv),
 
