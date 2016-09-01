@@ -80,7 +80,7 @@ learn_single_neuron_test_() ->
   F = fun (I1,I2, E) ->
     neuron:pass(Input1, I1),
     neuron:pass(Input2, I2),
-    timer:sleep(5),
+    timer:sleep(10),
     neuron:learn(N1, E)
   end,
 
@@ -118,15 +118,15 @@ learn_test() ->
   {ok, Input1} = neuron:start_link(),
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
-%%  {ok, N2} = neuron:start_link(),
-%%  {ok, N3} = neuron:start_link(),
+  {ok, N2} = neuron:start_link(),
+  {ok, N3} = neuron:start_link(),
 %%  {ok, N4} = neuron:start_link(),
 %%  {ok, N5} = neuron:start_link(),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
-%%  neuron:connect(Input1, N2),
-%%  neuron:connect(Input2, N2),
+  neuron:connect(Input1, N2),
+  neuron:connect(Input2, N2),
 %%  neuron:connect(Input1, N3),
 %%  neuron:connect(Input2, N3),
 %%  neuron:connect(Input1, N4),
@@ -136,15 +136,16 @@ learn_test() ->
 %%  neuron:connect(N3, N5),
 %%  neuron:connect(N4, N5),
 
-%%  neuron:connect(N1, N3),
-%%  neuron:connect(N2, N3),
+  neuron:connect(N1, N3),
+  neuron:connect(N2, N3),
 
   F = fun (I1,I2, E) ->
     neuron:pass(Input1, I1),
+%%    timer:sleep(10),
     neuron:pass(Input2, I2),
     timer:sleep(10),
-    neuron:learn(N1, E)
-%%    neuron:learn(N3, E)
+%%    neuron:learn(N1, E)
+    neuron:learn(N3, E)
 %%    neuron:learn(N5, E)
   end,
 
@@ -152,7 +153,7 @@ learn_test() ->
     fun() -> F(1,1,1) end,
     fun() -> F(1,0,0) end,
     fun() -> F(0,1,0) end,
-    fun() -> F(0,0,0) end
+    fun() -> F(0,0,1) end
   ],
 
   L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 500)]),
