@@ -6,7 +6,7 @@
 -behavior(gen_server).
 
 -record( input, {
-  weight      = rand:uniform() * 0.12, %% the weight associated to the input stimulus
+  weight      = rand:uniform() * 0.12 * 2 - 0.12, %% the weight associated to the input stimulus
   activation  = 0               %% the last activation of input node
 }).
 
@@ -24,6 +24,23 @@
 
 %% API -----------------------------------------------------------------------------------------------------------------
 start_link() -> gen_server:start_link(?MODULE, [], []).
+
+start_multi(Num) ->
+  L = [neuron:start_link() || _ <- lists:seq(1, Num)],
+  lists:map( fun ({ok, N}) -> N end, L).
+
+full_connect(In, Out) ->
+  lists:foreach(
+    fun(I) ->
+      lists:foreach(
+        fun(O) ->
+          neuron:connect(I, O)
+        end,
+        Out
+      )
+    end,
+    In
+  ).
 
 stimulate(Node, FromNode, Activation) -> gen_server:cast(Node, {stimulate, FromNode, Activation}).
 stimulate(Node, FromNode, Activation, cast) -> gen_server:cast(Node, {stimulate, FromNode, Activation});
@@ -44,6 +61,7 @@ pass(Pid, Input      ) -> gen_server:cast(Pid, {pass, Input}).
 
 %% Debugging api
 set_weights(Pid, W) -> gen_server:call(Pid, {set_weights, W }).
+get_state(Pid)      -> gen_server:call(Pid, get_state).
 
 get_output(Pid) -> gen_server:call(Pid, get_output).
 
@@ -149,6 +167,9 @@ handle_call({set_weights, W}, _, State) ->
 handle_call(get_output, _, State) ->
   {reply, State#state.activation, State};
 
+handle_call(get_state, _, State) ->
+  {reply, State, State};
+
 handle_call(_, _, _) ->
   erlang:error(not_implemented).
 
@@ -187,7 +208,7 @@ calculate_new_weights(State, Delta, Deriv)->
   maps:map(
     fun (_, Input) ->
       Input#input{
-        weight = Input#input.weight + 1 * Delta * Deriv * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
+        weight = Input#input.weight + 0.5 * Delta * Deriv * Input#input.activation   %% TODO: remove hardcoded 0.5 learning rate
       }
     end,
     State#state.inputs
