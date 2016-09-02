@@ -84,14 +84,14 @@ handle_cast({connect_to_output, Output_node}, State) ->
   NewState = State#state{
     outputs = maps:put(Output_node, #output{}, State#state.outputs)
   },
-  io:format("~w output connected to ~w: ~w~n", [self(), Output_node, maps:keys(NewState#state.outputs)]),
+%%  io:format("~w output connected to ~w: ~w~n", [self(), Output_node, maps:keys(NewState#state.outputs)]),
   {noreply, NewState};
 
 handle_cast({connect_to_input, Input_node}, State) ->
   NewState = State#state{
     inputs = maps:put(Input_node, #input{}, State#state.inputs)
   },
-  io:format("~w inputs connected to ~w: ~w~n", [self(), Input_node, maps:keys(NewState#state.inputs)]),
+%%  io:format("~w inputs connected to ~w: ~w~n", [self(), Input_node, maps:keys(NewState#state.inputs)]),
   {noreply, NewState};
 
 handle_cast({pass, Input_value}, State) ->

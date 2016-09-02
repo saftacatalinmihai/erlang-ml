@@ -5,6 +5,8 @@
 -compile(export_all).
 %-export([sigmoid/1, hyp/3, hyp/2, gradient_descent/7, lin_reg_deriv/4, lin_reg_cost/3]).
 
+sigmoid(Z) when Z > 10 ->  1;
+sigmoid(Z) when Z < -10 -> 0;
 sigmoid(Z) -> 1 / (1 + math:exp(-Z)).
 
 sigmoid_deriv(Z) ->
