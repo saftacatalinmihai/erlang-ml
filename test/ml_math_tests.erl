@@ -24,7 +24,7 @@ gradient_descent_lin_reg_test_()->
     ),
     [
         fun () ->
-            H = ml_math:hyp(W, [1, 10]),
+            H = ml_math:dot_p(W, [1, 10]),
             ?assert(H > 19.999),
             ?assert(H < 20.001)
          end

@@ -13,7 +13,7 @@ sigmoid_deriv(Z) ->
     Gz = sigmoid(Z),
     Gz * (1 - Gz).
 
-hyp(W, A) ->
+dot_p(W, A) ->
   lists:sum(
     lists:zipwith(
       fun (X,Y) -> X * Y end,
@@ -21,7 +21,7 @@ hyp(W, A) ->
     )
   ).
 
-hyp(W, A, F) -> F(hyp(W, A)).
+hyp(W, A, F) -> F(dot_p(W, A)).
 
 
 gradient_descent(Weights, _, _, _, _, _, 0) -> Weights;
@@ -39,7 +39,7 @@ gradient_descent(Weights, X, Y, Alpha, _CostF, DerivF, Iterations) ->
 lin_reg_deriv(W, X, Y, J) ->
     lists:foldl(
         fun (I, Sum) ->
-            Sum + (hyp(W, [1 | nth(I, X)]) - nth(I, Y) ) * nth(J, [1 | nth(I, X)])
+            Sum + (dot_p(W, [1 | nth(I, X)]) - nth(I, Y) ) * nth(J, [1 | nth(I, X)])
         end,
         0,
         seq(1,length(X))
@@ -48,7 +48,7 @@ lin_reg_deriv(W, X, Y, J) ->
 lin_reg_cost(W, X, Y) ->
     lists:foldl(
         fun(I, Sum) ->
-            Diff = (hyp(W, [1 | nth(I, X)]) - nth(I, Y) ),
+            Diff = (dot_p(W, [1 | nth(I, X)]) - nth(I, Y) ),
             Sum + Diff * Diff
         end,
         0,

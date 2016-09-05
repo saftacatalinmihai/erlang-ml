@@ -41,7 +41,7 @@ xor_test_() ->
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
   {ok, N2} = neuron:start_link(),
-  {ok, N3} = neuron:start_link(),
+  {ok, N3} = neuron:start_link(fun ([Pid, Out]) -> io:format("~p: ~p~n", [Pid, Out]) end),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
@@ -56,13 +56,13 @@ xor_test_() ->
 
   [
     fun () ->
-      neuron:pass(Input1, 0, call),
-      neuron:pass(Input2, 1, call),
+      neuron:pass(Input1, {predict, 0}),
+      neuron:pass(Input2, {predict, 1}),
       ?assert(neuron:get_output(N3) < 0.0001)
     end,
     fun () ->
-      neuron:pass(Input1, 0, call),
-      neuron:pass(Input2, 0, call),
+      neuron:pass(Input1, {predict, 0}),
+      neuron:pass(Input2, {predict, 0}),
       ?assert(neuron:get_output(N3) > 0.999)
     end
   ].
@@ -117,7 +117,7 @@ learn_nxor_test_() ->
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
   {ok, N2} = neuron:start_link(),
-  {ok, N3} = neuron:start_link(),
+  {ok, N3} = neuron:start_link(fun ([Pid, Out]) -> io:format("~p ~p~n", [Pid, Out]) end),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
@@ -130,20 +130,21 @@ learn_nxor_test_() ->
 
 %%  timer:sleep(100),
 
-  F = fun (I1,I2, E) ->
-    neuron:pass(Input1, I1, call),
-    neuron:pass(Input2, I2, call),
-    neuron:learn(N3, E)
+  F = fun (I1,I2, Expected) ->
+    Example_ref = make_ref(),
+    neuron:pass(Input1, {train, Example_ref, I1}),
+    neuron:pass(Input2, {train, Example_ref, I2}),
+    neuron:learn(N3, {Example_ref, Expected})
   end,
 
   L = [
     fun() -> F(1,1,1) end,
-    fun() -> F(1,0,0) end,
+    fun() -> F(1,0,1) end,
     fun() -> F(0,1,0) end,
-    fun() -> F(0,0,1) end
+    fun() -> F(0,0,0) end
   ],
 
-  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 1000)]),
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 10)]),
   L3 = [X||{_,X} <- lists:sort([ {rand:uniform(), N} || N <- L2])],
 
   lists:foreach(
@@ -180,220 +181,47 @@ learn_7seg_digits_test_() ->
   Inputs  = neuron:start_multi(7),
   Hidden1  = neuron:start_multi(7),
 %%  Hidden2  = neuron:start_multi(10),
-  Outputs = neuron:start_multi(10),
+  Outputs = neuron:start_multi(10), %%, fun ([Pid, Out]) -> io:format("~p~p~n", [Pid, Out]) end),
 
   neuron:full_connect(Inputs, Hidden1),
 %%  neuron:full_connect(Hidden1, Hidden2),
   neuron:full_connect(Hidden1, Outputs),
 
-  Learning_example = fun
-     (0) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 0),
-      neuron:pass(lists:nth(5, Inputs), 1),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
+  NumToVec = fun
+               (0) -> [1,1,1,0,1,1,1];
+               (1) -> [0,0,1,0,0,1,0];
+               (2) -> [1,0,0,1,1,0,1];
+               (3) -> [1,0,1,1,0,1,1];
+               (4) -> [0,1,1,1,0,1,0];
+               (5) -> [1,1,0,1,0,1,1];
+               (6) -> [1,1,0,1,1,1,1];
+               (7) -> [1,0,1,0,0,1,0];
+               (8) -> [1,1,1,1,1,1,1];
+               (9) -> [1,1,1,1,0,1,0]
+            end,
+  NumToOut = fun
+               (0) -> [0,0,0,0,0,0,0,0,0,1];
+               (I) -> lists:map(fun(_) -> 0 end,lists:seq(1, I-1)) ++ [1] ++ lists:map(fun(_) -> 0 end,lists:seq(I+1, 10))
+             end,
 
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),1);
-    (1) ->
-      neuron:pass(lists:nth(1, Inputs), 0),
-      neuron:pass(lists:nth(2, Inputs), 0),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 0),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 0, call),
+  Learning_example = fun (N) ->
+      lists:foreach(
+        fun ({Input, InVal}) ->
+          neuron:pass(Input, InVal, call)
+        end,
+        lists:zip(Inputs, NumToVec(N))
+      ),
 
-      neuron:learn(lists:nth(1, Outputs), 1),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (2) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 0),
-      neuron:pass(lists:nth(3, Inputs), 0),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 1),
-      neuron:pass(lists:nth(6, Inputs), 0),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 1),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (3) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 0),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 1),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (4) ->
-      neuron:pass(lists:nth(1, Inputs), 0),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 0, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 1),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (5) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 0),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 1),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (6) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 0),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 1),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 1),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (7) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 0),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 0),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 0, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 1),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (8) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 1),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 1, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 1),
-      neuron:learn(lists:nth(9, Outputs), 0),
-      neuron:learn(lists:nth(10, Outputs),0);
-    (9) ->
-      neuron:pass(lists:nth(1, Inputs), 1),
-      neuron:pass(lists:nth(2, Inputs), 1),
-      neuron:pass(lists:nth(3, Inputs), 1),
-      neuron:pass(lists:nth(4, Inputs), 1),
-      neuron:pass(lists:nth(5, Inputs), 0),
-      neuron:pass(lists:nth(6, Inputs), 1),
-      neuron:pass(lists:nth(7, Inputs), 0, call),
-
-      neuron:learn(lists:nth(1, Outputs), 0),
-      neuron:learn(lists:nth(2, Outputs), 0),
-      neuron:learn(lists:nth(3, Outputs), 0),
-      neuron:learn(lists:nth(4, Outputs), 0),
-      neuron:learn(lists:nth(5, Outputs), 0),
-      neuron:learn(lists:nth(6, Outputs), 0),
-      neuron:learn(lists:nth(7, Outputs), 0),
-      neuron:learn(lists:nth(8, Outputs), 0),
-      neuron:learn(lists:nth(9, Outputs), 1),
-      neuron:learn(lists:nth(10, Outputs),0)
+      lists:foreach(
+        fun ({Output, OutVal}) ->
+          neuron:learn(Output, OutVal)
+        end,
+        lists:zip(Outputs, NumToOut(N))
+      )
   end,
 
-  L = [
-    fun() -> Learning_example(1) end,
-    fun() -> Learning_example(2) end,
-    fun() -> Learning_example(3) end,
-    fun() -> Learning_example(4) end,
-    fun() -> Learning_example(5) end,
-    fun() -> Learning_example(6) end,
-    fun() -> Learning_example(7) end,
-    fun() -> Learning_example(8) end,
-    fun() -> Learning_example(9) end,
-    fun() -> Learning_example(0) end
-
-  ],
-
-  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 1000)]),
+  L = lists:map( fun (I) -> fun () -> Learning_example(I) end end, lists:seq(0,9)),
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 500)]),
   L3 = [X||{_,X} <- lists:sort([ {rand:uniform(), N} || N <- L2])],
 
   lists:foreach(
