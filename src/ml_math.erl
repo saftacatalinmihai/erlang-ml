@@ -23,7 +23,6 @@ dot_p(W, A) ->
 
 hyp(W, A, F) -> F(dot_p(W, A)).
 
-
 gradient_descent(Weights, _, _, _, _, _, 0) -> Weights;
 gradient_descent(Weights, X, Y, Alpha, _CostF, DerivF, Iterations) ->
 %    io:format("Cost: ~p~n", [lin_reg_cost(Weights,X,Y)]),

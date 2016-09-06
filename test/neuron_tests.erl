@@ -2,6 +2,11 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+neuron_connect_test_() ->
+  {ok, N1} = neuron:start(),
+  {ok, N2} = neuron:start(),
+  neuron:connect(N1, N2).
+
 perceive_test_() ->
     [   fun () ->
             neuron:perceive([1, neuron:perceive([1,1,1], [-10, 20, 20]), neuron:perceive([1,1,1], [-30, 20, 20])], [10, 20, -20]) > 0.9999
@@ -41,7 +46,7 @@ xor_test_() ->
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
   {ok, N2} = neuron:start_link(),
-  {ok, N3} = neuron:start_link(fun ([Pid, Out]) -> io:format("~p: ~p~n", [Pid, Out]) end),
+  {ok, N3} = neuron:start_link(),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
@@ -117,7 +122,7 @@ learn_nxor_test_() ->
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
   {ok, N2} = neuron:start_link(),
-  {ok, N3} = neuron:start_link(fun ([Pid, Out]) -> io:format("~p ~p~n", [Pid, Out]) end),
+  {ok, N3} = neuron:start_link(),
 
   neuron:connect(Input1, N1),
   neuron:connect(Input2, N1),
@@ -131,10 +136,8 @@ learn_nxor_test_() ->
 %%  timer:sleep(100),
 
   F = fun (I1,I2, Expected) ->
-    Example_ref = make_ref(),
-    neuron:pass(Input1, {train, Example_ref, I1}),
-    neuron:pass(Input2, {train, Example_ref, I2}),
-    neuron:learn(N3, {Example_ref, Expected})
+    neuron:pass(Input1, {I1, {expecting, [{N3, Expected}]}}),
+    neuron:pass(Input2, {I2, {expecting, [{N3, Expected}]}})
   end,
 
   L = [
