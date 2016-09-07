@@ -41,7 +41,7 @@ neuron_gen_server_test_() ->
     end
   ].
 
-xor_test_() ->
+nxor_test_() ->
   {ok, Input1} = neuron:start_link(),
   {ok, Input2} = neuron:start_link(),
   {ok, N1} = neuron:start_link(),
@@ -55,14 +55,14 @@ xor_test_() ->
   neuron:connect(N1, N3),
   neuron:connect(N2, N3),
 
-  neuron:set_weights(N1, [{1, -30}, {Input1, 20}, {Input2, 20}]),
-  neuron:set_weights(N2, [{1,  10}, {Input1,-20}, {Input2,-20}]),
-  neuron:set_weights(N3, [{1, -10}, {N1,     20}, {N2,     20}]),
+  neuron:set_weights(N1, -30, [20,   20]),
+  neuron:set_weights(N2,  10, [-20, -20]),
+  neuron:set_weights(N3, -10, [20,   20]),
 
   [
     fun () ->
-      neuron:pass(Input1, {predict, 0}),
-      neuron:pass(Input2, {predict, 1}),
+      neuron:pass(Input1, {0, {expecting, []}}),
+      neuron:pass(Input2, {1, {expecting, []}}),
       ?assert(neuron:get_output(N3) < 0.0001)
     end,
     fun () ->
@@ -147,13 +147,26 @@ learn_nxor_test_() ->
     fun() -> F(0,0,0) end
   ],
 
-  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 10)]),
+  L2 = lists:flatten([ L ++ L || _ <- lists:seq(1, 100)]),
   L3 = [X||{_,X} <- lists:sort([ {rand:uniform(), N} || N <- L2])],
 
   lists:foreach(
     fun(Fn) -> Fn() end,
     L3
   ),
+
+  neuron:pass(Input1, {1, {expecting, []}}),
+  neuron:pass(Input2, {1, {expecting, []}}),
+
+  neuron:pass(Input1, {0, {expecting, []}}),
+  neuron:pass(Input2, {1, {expecting, []}}),
+
+  neuron:pass(Input1, {1, {expecting, []}}),
+  neuron:pass(Input2, {0, {expecting, []}}),
+
+  neuron:pass(Input1, {0, {expecting, []}}),
+  neuron:pass(Input2, {0, {expecting, []}}),
+
 %%  timer:sleep(100),
 %%  ?debugFmt("N1: ~p~n", [neuron:get_state(N1)]),
 %%  ?debugFmt("N2: ~p~n", [neuron:get_state(N2)]),

@@ -10,7 +10,7 @@
 -author("mihai").
 
 %% API
--export([forward/5, backprop/4, test/0]).
+-export([forward/5, backprop/4, gradient/5, test/0]).
 
 %% runs feed forward on a single neuron.
 %% returns the weighted sum of inputs and the activation function
@@ -33,6 +33,19 @@ forward(Inputs, Bias, Weights, Activation_fn, Deriv_fn) ->
 
   {Z, A, Gradient}.
 
+gradient(BackProp, Bias, Weights, Inputs, Deriv_fn) ->
+  Z = ml_math:dot_p([Bias| Weights], [1| Inputs]),
+  BiasGrad = BackProp * Deriv_fn(Z),
+  WeightsGrad =
+    lists:map(
+      fun(I) ->
+        BackProp * Deriv_fn(Z) * I
+      end,
+      Inputs
+    ),
+  {BiasGrad, WeightsGrad}.
+
+backprop(Bias, Weights, _, []) -> {Bias, Weights};
 backprop(Bias, Weights, Lambda, Gradients) ->
   {BiasGradSum, WeightsGradSum} =
     lists:foldl(
@@ -46,6 +59,7 @@ backprop(Bias, Weights, Lambda, Gradients) ->
       Gradients
     ),
 
+%%    io:format("DEBUG: [[~p][~p][~p][~p]]", [Bias, Lambda, Gradients, BiasGradSum]),
     NewBias = Bias + (Lambda / length(Gradients)) * BiasGradSum,
     NewWeights =
       lists:zipwith(
