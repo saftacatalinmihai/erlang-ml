@@ -45,24 +45,27 @@ start() ->
 % Loop
 loop(State) ->
   receive
-    {FromPid, {forward, {Value, ExpectedList}}} ->
-      NewInputs = lists:keyreplace(FromPid, 1, State#state.inputs, {FromPid, Value}),
-      case all_inputs_received(State#state{inputs = NewInputs}) of
-        true ->
-          case last_layer(State) of
-            true ->
-              on_forward_last_layer(State#state{inputs = NewInputs}, ExpectedList);
-
-            false ->
-              on_forward_hidden_layer(State#state{inputs = NewInputs}, ExpectedList)
-
-          end;
-        false ->
-          {noreply, State#state{inputs = NewInputs, inputs_received = State#state.inputs_received + 1}}
-      end;
-      io:format("Received msg: ~p~n", [X]),
-      From ! {self(), {backprop, X}},
+    {FromPid, Msg } ->
+      FromPid ! {self(), {ok, Msg}},
       loop(State)
+%%    {FromPid, {forward, {Value, ExpectedList}}} ->
+%%      NewInputs = lists:keyreplace(FromPid, 1, State#state.inputs, {FromPid, Value}),
+%%      case all_inputs_received(State#state{inputs = NewInputs}) of
+%%        true ->
+%%          case last_layer(State) of
+%%            true ->
+%%              on_forward_last_layer(State#state{inputs = NewInputs}, ExpectedList);
+%%
+%%            false ->
+%%              on_forward_hidden_layer(State#state{inputs = NewInputs}, ExpectedList)
+%%
+%%          end;
+%%        false ->
+%%          {noreply, State#state{inputs = NewInputs, inputs_received = State#state.inputs_received + 1}}
+%%      end;
+%%      io:format("Received msg: ~p~n", [X]),
+%%      From ! {self(), {backprop, X}},
+%%      loop(State)
   end.
 
 send_all(Pids, Msg) ->
@@ -78,9 +81,9 @@ wait_responses(Pids, Acc) ->
   end.
 
 test() ->
-  {ok, P1} = neuron_node:start(),
-  {ok, P2} = neuron_node:start(),
-  {ok, P3} = neuron_node:start(),
+  {ok, P1} = ?MODULE:start(),
+  {ok, P2} = ?MODULE:start(),
+  {ok, P3} = ?MODULE:start(),
 
   send_all([P1, P2, P3], hi).
 
