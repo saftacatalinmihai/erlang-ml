@@ -24,15 +24,15 @@ dot_p(W, A) ->
 hyp(W, A, F) -> F(dot_p(W, A)).
 
 gradient_descent(Weights, _, _, _, _, _, 0) -> Weights;
-gradient_descent(Weights, X, Y, Alpha, _CostF, DerivF, Iterations) ->
+gradient_descent(Weights, X, Y, LearningRate, _CostF, DerivF, Iterations) ->
 %    io:format("Cost: ~p~n", [lin_reg_cost(Weights,X,Y)]),
     gradient_descent(
         lists:map(
             fun (J) ->
-                nth(J,Weights) - Alpha * DerivF(Weights, X, Y, J)
+                nth(J,Weights) - LearningRate * DerivF(Weights, X, Y, J)
             end,
             seq(1, length(Weights))
-        ), X, Y, Alpha, _CostF, DerivF, Iterations - 1
+        ), X, Y, LearningRate, _CostF, DerivF, Iterations - 1
     ).
 
 lin_reg_deriv(W, X, Y, J) ->
