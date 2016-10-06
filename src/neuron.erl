@@ -15,7 +15,8 @@
   set_input_value/3,
   set_input_weight/3,
   activation/1,
-  calc_activation/1
+  calc_activation/1,
+  update_weights/2
 ]).
 
 -export([test_new_neuron/0,test_3_neurons/0]).
@@ -25,7 +26,8 @@
   bias = 0,
   activation = 0,
   activation_fn = fun ml_math:sigmoid/1,
-  deriv_fn = fun ml_math:sigmoid_deriv/1
+  deriv_fn = fun ml_math:sigmoid_deriv/1,
+  learning_rate = 1
 }).
 
 %% API
@@ -72,8 +74,28 @@ calc_activation(Neuron) ->
 
 activation(#neuron{activation = A}) -> A.
 
-
-
+update_weights(Neuron, BackProp) ->
+  Grads = neuron_funs:gradient(
+    BackProp,
+    Neuron#neuron.bias,
+    input_weights(Neuron#neuron.inputs),
+    input_values(Neuron#neuron.inputs),
+    Neuron#neuron.deriv_fn
+  ),
+  {NewBias, NewWeights} = neuron_funs:backprop(
+    Neuron#neuron.bias,
+    input_weights(Neuron#neuron.inputs),
+    Neuron#neuron.learning_rate,
+    Grads
+    ),
+  Neuron#neuron{
+    bias = NewBias,
+    inputs =  lists:map(
+      fun ({{Input_Id, _, Input_Value}, NW}) -> {Input_Id, NW, Input_Value}
+      end,
+      lists:zip(Neuron#neuron.inputs, NewWeights)
+    )
+  }.
 
 
 %% Internal functions
