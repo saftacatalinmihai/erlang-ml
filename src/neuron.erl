@@ -82,6 +82,7 @@ update_weights(Neuron, BackProp) ->
     input_values(Neuron#neuron.inputs),
     Neuron#neuron.deriv_fn
   ),
+  io:format("!!!~p~n", [Grads]),
   {NewBias, NewWeights} = neuron_funs:backprop(
     Neuron#neuron.bias,
     input_weights(Neuron#neuron.inputs),
@@ -91,7 +92,8 @@ update_weights(Neuron, BackProp) ->
   Neuron#neuron{
     bias = NewBias,
     inputs =  lists:map(
-      fun ({{Input_Id, _, Input_Value}, NW}) -> {Input_Id, NW, Input_Value}
+      fun ({{Input_Id, _, Input_Value}, NW}) ->
+        {Input_Id, NW, Input_Value}
       end,
       lists:zip(Neuron#neuron.inputs, NewWeights)
     )
@@ -114,7 +116,11 @@ test_new_neuron() ->
   N = new(),
   N1 = add_input(N, 1, 1),
   N2 = add_input(N1, 2, 1),
-  io:format("~p~n", [N2]).
+  io:format("~p~n", [N2]),
+
+  N3 = calc_activation(N2),
+  N4 = update_weights(N3, 0 - activation(N3)),
+  io:format("~p~n", [N4]).
 
 test_3_neurons() ->
   N1 = new(),
