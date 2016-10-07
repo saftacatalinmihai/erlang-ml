@@ -47,6 +47,7 @@ gradient(BackProp, Bias, Weights, Inputs, Deriv_fn) ->
 
 backprop(Bias, Weights, _, []) -> {Bias, Weights};
 backprop(Bias, Weights, Lambda, Gradients) ->
+  io:format("Grads: ~p~n", [Gradients]),
   {BiasGradSum, WeightsGradSum} =
     lists:foldl(
       fun({Bg, Wg}, {BgSum, Wgs}) ->

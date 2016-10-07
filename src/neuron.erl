@@ -87,7 +87,7 @@ update_weights(Neuron, BackProp) ->
     Neuron#neuron.bias,
     input_weights(Neuron#neuron.inputs),
     Neuron#neuron.learning_rate,
-    Grads
+    [Grads]
     ),
   Neuron#neuron{
     bias = NewBias,
