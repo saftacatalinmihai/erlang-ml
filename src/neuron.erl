@@ -12,17 +12,21 @@
 -export([
   new/0,
   add_input/3,
+  add_outputs/2,
   set_input_value/3,
   set_input_weight/3,
   activation/1,
   calc_activation/1,
-  update_weights/2
+  update_weights/2,
+  input_Ids/1,
+  output_Ids/1
 ]).
 
 -export([test_new_neuron/0,test_3_neurons/0]).
 
 -record(neuron, {
   inputs = [],
+  outputs = [],
   bias = 0,
   activation = 0,
   activation_fn = fun ml_math:sigmoid/1,
@@ -37,6 +41,11 @@ add_input(Neuron, Input_Id, Input_Value) ->
     Neuron#neuron{
       inputs = [{Input_Id, random_weight(), Input_Value} | Neuron#neuron.inputs]
     }.
+
+add_outputs(Neuron, OutputIds) ->
+  Neuron#neuron{
+    outputs = OutputIds ++ Neuron#neuron.outputs
+  }.
 
 set_input_value(Neuron, Input_Id, Input_Value) ->
   {_,W,_} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
@@ -110,6 +119,9 @@ input_weights(Inputs) ->
 
 input_Ids (Inputs) ->
   lists:map(fun({Id, _W, _V}) -> Id end, Inputs).
+
+output_Ids (#neuron{outputs = O}) -> O.
+
 
 % Test
 test_new_neuron() ->
