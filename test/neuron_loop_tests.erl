@@ -15,7 +15,6 @@ send_all_test() ->
   io:format("~p~n", [Resp]),
   ?assertEqual([{ok,pong}, {ok, pong}, {ok,pong}, {ok, pong}, {ok,pong}], Resp).
 
-
 nxor_test() ->
   io:format("Start Test~n"),
 
@@ -33,7 +32,6 @@ nxor_test() ->
   neuron_loop:setBias(H1, -30),
   neuron_loop:setWeight(H1,  I1, 20),
   neuron_loop:setWeight(H1,  I2, 20),
-
 
   neuron_loop:setBias(H2, 10),
   neuron_loop:setWeight(H2,  I1, -20),

@@ -10,18 +10,11 @@
 -author("mihai").
 
 -compile(export_all).
-%% API
 
+%% API
 start() ->
   Pid = spawn(?MODULE, loop, [neuron:new()]),
   {ok, Pid}.
-
-addInput(Pid, V) ->
-  R = make_ref(),
-  Pid ! {self(), R, {addInput, V}},
-  receive
-    {Pid, R, M} -> M
-  end.
 
 addOutputs(Pid, ToPids) ->
   R = make_ref(),
@@ -67,7 +60,6 @@ setBias(Pid, B) ->
   end.
 
 
-% Loop
 loop(State) ->
   receive
     {FromPid, Ref, getState} ->
@@ -112,7 +104,7 @@ loop(State) ->
         false ->
           loop(N)
       end;
-    Other -> io:format("Unhanled message: ~p~n", [Other])
+    Other -> io:format("Unhanled message: ~p~n", [-Other])
   end.
 
 
