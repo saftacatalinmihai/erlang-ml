@@ -44,13 +44,6 @@ setInput(Pid, Value) ->
     {Pid, R, M} -> M
   end.
 
-activate(Pid) ->
-  R = make_ref(),
-  Pid ! {self(), R, activate},
-  receive
-    {Pid, R, M} -> M
-  end.
-
 % DEBUG
 getActivation(Pid) ->
   R = make_ref(),
@@ -94,8 +87,8 @@ loop(State) ->
       loop(neuron:set_input_weight(State, InputId, W));
 
     {FromPid, Ref, {pass, Value}} ->
-      send_all(neuron:output_Ids(State), {setInput, Value}),
       FromPid ! {self(), Ref, ok},
+      send_all(neuron:output_Ids(State), {setInput, Value}),
       loop(State);
 
     {FromPid, Ref, {addInput, Value}} ->
@@ -113,39 +106,12 @@ loop(State) ->
       io:format("Setting input from ~p with value ~p~n", [FromPid, Value]),
       case neuron:all_inputs_set(N) of
         true ->
-          N2 = neuron:calc_activation(N),
-          A = neuron:activation(N2),
-          send_all(neuron:output_Ids(N2), {setInput, A}),
-          loop(N2);
+          ActivatedNeuron = neuron:calc_activation(N),
+          send_all(neuron:output_Ids(ActivatedNeuron), {setInput, neuron:activation(ActivatedNeuron)}),
+          loop(ActivatedNeuron);
         false ->
           loop(N)
       end;
-
-    {FromPid, Ref, activate} ->
-      N = neuron:calc_activation(State),
-      A = neuron:activation(N),
-      send_all(neuron:output_Ids(State), {setInput, A}),
-%%      send_all(neuron:output_Ids(State), activate),
-      FromPid ! {self(), Ref, ok},
-      loop(N);
-%%    {FromPid, {forward, {Value, ExpectedList}}} ->
-%%      NewInputs = lists:keyreplace(FromPid, 1, State#state.inputs, {FromPid, Value}),
-%%      case all_inputs_received(State#state{inputs = NewInputs}) of
-%%        true ->
-%%          case last_layer(State) of
-%%            true ->
-%%              on_forward_last_layer(State#state{inputs = NewInputs}, ExpectedList);
-%%
-%%            false ->
-%%              on_forward_hidden_layer(State#state{inputs = NewInputs}, ExpectedList)
-%%
-%%          end;
-%%        false ->
-%%          {noreply, State#state{inputs = NewInputs, inputs_received = State#state.inputs_received + 1}}
-%%      end;
-%%      io:format("Received msg: ~p~n", [X]),
-%%      From ! {self(), {backprop, X}},
-%%      loop(State)
     Other -> io:format("Unhanled message: ~p~n", [Other])
   end.
 
@@ -163,12 +129,3 @@ wait_responses([{P,R}|RefPids], Acc) ->
     {P,R, Msg} -> wait_responses(lists:delete({P, R}, RefPids), [Msg | Acc]);
     _ -> wait_responses(RefPids, Acc)
   end.
-
-%%all_inputs_received(State) ->
-%%  State#state.inputs_received =:= length(State#state.inputs) - 1.
-%%
-%%all_backprops_received(State) ->
-%%  State#state.backprops_received =:= length(State#state.outputs) - 1.
-%%
-%%last_layer(State) ->
-%%  length(State#state.outputs) =:= 0.
