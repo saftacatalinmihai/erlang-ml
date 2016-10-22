@@ -15,11 +15,13 @@
   add_outputs/2,
   set_input_value/3,
   set_input_weight/3,
+  set_input_bias/2,
   activation/1,
   calc_activation/1,
   update_weights/2,
   input_Ids/1,
-  output_Ids/1
+  output_Ids/1,
+  all_inputs_set/1
 ]).
 
 -export([test_new_neuron/0,test_3_neurons/0]).
@@ -39,7 +41,7 @@ new() -> #neuron{}.
 
 add_input(Neuron, Input_Id, Input_Value) ->
     Neuron#neuron{
-      inputs = [{Input_Id, random_weight(), Input_Value} | Neuron#neuron.inputs]
+      inputs = [{Input_Id, random_weight(), Input_Value, false} | Neuron#neuron.inputs]
     }.
 
 add_outputs(Neuron, OutputIds) ->
@@ -48,7 +50,7 @@ add_outputs(Neuron, OutputIds) ->
   }.
 
 set_input_value(Neuron, Input_Id, Input_Value) ->
-  {_,W,_} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
+  {_,W,_,_} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
 
   Neuron#neuron{
     inputs = lists:keyreplace(
@@ -57,13 +59,16 @@ set_input_value(Neuron, Input_Id, Input_Value) ->
       Neuron#neuron.inputs,
       { Input_Id,
         W,
-        Input_Value
+        Input_Value,
+        true
       }
     )
   }.
 
+set_input_bias(Neuron, Bias) -> Neuron#neuron{bias = Bias}.
+
 set_input_weight(Neuron, Input_Id, Weight) ->
-  {_,_,V} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
+  {_,_,V,IS} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
 
   Neuron#neuron{
     inputs = lists:keyreplace(
@@ -72,14 +77,18 @@ set_input_weight(Neuron, Input_Id, Weight) ->
       Neuron#neuron.inputs,
       { Input_Id,
         Weight,
-        V
+        V,
+        IS
       }
     )
   }.
 
 calc_activation(Neuron) ->
   Z = ml_math:dot_p([Neuron#neuron.bias|input_weights(Neuron#neuron.inputs)], [1|input_values(Neuron#neuron.inputs)]),
-  Neuron#neuron{activation = (Neuron#neuron.activation_fn)(Z)}.
+  Neuron#neuron{
+    activation = (Neuron#neuron.activation_fn)(Z),
+    inputs = unset_all_inputs(Neuron#neuron.inputs)
+  }.
 
 activation(#neuron{activation = A}) -> A.
 
@@ -101,24 +110,30 @@ update_weights(Neuron, BackProp) ->
   Neuron#neuron{
     bias = NewBias,
     inputs =  lists:map(
-      fun ({{Input_Id, _, Input_Value}, NW}) ->
-        {Input_Id, NW, Input_Value}
+      fun ({{Input_Id, _, Input_Value, Input_Set}, NW}) ->
+        {Input_Id, NW, Input_Value, Input_Set}
       end,
       lists:zip(Neuron#neuron.inputs, NewWeights)
     )
   }.
 
+all_inputs_set(Neuron) ->
+  lists:all(fun({_Id, _W, _V, IS}) -> IS =:= true end, Neuron#neuron.inputs).
+
+unset_all_inputs(Inputs) ->
+  lists:map(fun({Id, W, V, _IS}) -> {Id, W, V, false} end, Inputs).
 
 %% Internal functions
 random_weight() -> rand:uniform() * 0.12 * 2 - 0.12.
 input_values(Inputs) ->
-  lists:map(fun({_Id, _W, V}) -> V end, Inputs).
+  lists:map(fun({_Id, _W, V, _IS}) -> V end, Inputs).
 
 input_weights(Inputs) ->
-  lists:map(fun({_Id, W, _V}) -> W end, Inputs).
+  lists:map(fun({_Id, W, _V, _IS}) -> W end, Inputs).
 
 input_Ids (Inputs) ->
-  lists:map(fun({Id, _W, _V}) -> Id end, Inputs).
+  lists:map(fun({Id, _W, _V, _IS}) -> Id end, Inputs).
+
 
 output_Ids (#neuron{outputs = O}) -> O.
 
