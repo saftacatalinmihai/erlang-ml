@@ -15,6 +15,7 @@
   add_outputs/2,
   set_input_value/3,
   set_input_weight/3,
+  get_input_weight/2,
   set_input_bias/2,
   activation/1,
   calc_activation/1,
@@ -83,6 +84,10 @@ set_input_weight(Neuron, Input_Id, Weight) ->
     )
   }.
 
+get_input_weight(Neuron, Input_Id) ->
+  {Input_Id,W,_V,_IS} = lists:keyfind( Input_Id, 1, Neuron#neuron.inputs),
+  W.
+
 calc_activation(Neuron) ->
   Z = ml_math:dot_p([Neuron#neuron.bias|input_weights(Neuron#neuron.inputs)], [1|input_values(Neuron#neuron.inputs)]),
   Neuron#neuron{
@@ -100,7 +105,7 @@ update_weights(Neuron, BackProp) ->
     input_values(Neuron#neuron.inputs),
     Neuron#neuron.deriv_fn
   ),
-  io:format("!!!~p~n", [Grads]),
+%%  io:format("!!!~p~n", [Grads]),
   {NewBias, NewWeights} = neuron_funs:backprop(
     Neuron#neuron.bias,
     input_weights(Neuron#neuron.inputs),
@@ -131,8 +136,8 @@ input_values(Inputs) ->
 input_weights(Inputs) ->
   lists:map(fun({_Id, W, _V, _IS}) -> W end, Inputs).
 
-input_Ids (Inputs) ->
-  lists:map(fun({Id, _W, _V, _IS}) -> Id end, Inputs).
+input_Ids (Neuron) ->
+  lists:map(fun({Id, _W, _V, _IS}) -> Id end,  Neuron#neuron.inputs).
 
 
 output_Ids (#neuron{outputs = O}) -> O.

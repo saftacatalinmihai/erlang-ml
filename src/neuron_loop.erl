@@ -11,9 +11,14 @@
 
 -compile(export_all).
 
+-record(state, {
+  neuron = neuron:new(),
+  backprop_queue = []
+}).
+
 %% API
 start() ->
-  Pid = spawn(?MODULE, loop, [neuron:new()]),
+  Pid = spawn(?MODULE, loop, [#state{}]),
   {ok, Pid}.
 
 addOutputs(Pid, ToPids) ->
@@ -42,7 +47,7 @@ getActivation(Pid) ->
   R = make_ref(),
   Pid ! {self(), R, getState},
   receive
-    {Pid, R, {ok, N}} -> neuron:activation(N)
+    {Pid, R, {ok, State}} -> neuron:activation(State#state.neuron)
   end.
 
 setWeight(Pid, InputId, Weight) ->
@@ -72,39 +77,51 @@ loop(State) ->
 
     {FromPid, Ref, {setBias, B}} ->
       FromPid ! {self(), Ref, ok},
-      loop(neuron:set_input_bias(State, B));
+      loop(State#state{neuron = neuron:set_input_bias(State#state.neuron, B)});
 
     {FromPid, Ref, {setWeight, InputId, W}} ->
       FromPid ! {self(), Ref, ok},
-      loop(neuron:set_input_weight(State, InputId, W));
+      loop(State#state{neuron = neuron:set_input_weight(State#state.neuron, InputId, W)});
 
     {FromPid, Ref, {pass, Value}} ->
       FromPid ! {self(), Ref, ok},
-      send_all(neuron:output_Ids(State), {setInput, Value}),
+      send_all(neuron:output_Ids(State#state.neuron), {setInput, Value}),
       loop(State);
 
     {FromPid, Ref, {addInput, Value}} ->
       FromPid ! {self(), Ref, ok},
-      loop(neuron:add_input(State, FromPid, Value));
+      loop(State#state{neuron = neuron:add_input(State#state.neuron, FromPid, Value)});
 
     {FromPid, Ref, {addOutputs, ToPids}} ->
       FromPid ! {self(), Ref, ok},
-      send_all(ToPids, {addInput, neuron:activation(State)}),
-      loop(neuron:add_outputs(State, ToPids));
+      send_all(ToPids, {addInput, neuron:activation(State#state.neuron)}),
+      loop(State#state{neuron = neuron:add_outputs(State#state.neuron, ToPids)});
 
     {FromPid, Ref, {setInput, Value}} ->
-      FromPid ! {self(), Ref, ok},
-      N = neuron:set_input_value(State, FromPid, Value),
+      N = neuron:set_input_value(State#state.neuron, FromPid, Value),
       io:format("Setting input from ~p with value ~p~n", [FromPid, Value]),
       case neuron:all_inputs_set(N) of
         true ->
           ActivatedNeuron = neuron:calc_activation(N),
-          send_all(neuron:output_Ids(ActivatedNeuron), {setInput, neuron:activation(ActivatedNeuron)}),
-          loop(ActivatedNeuron);
+
+          Delta = case send_all(neuron:output_Ids(ActivatedNeuron), {setInput, neuron:activation(ActivatedNeuron)}) of
+            [] -> 1 - neuron:activation(ActivatedNeuron);
+            Deltas -> lists:sum(Deltas)
+          end,
+          io:format("BackProp: ~p~n", [Delta]),
+          FromPid ! {self(), Ref, neuron:get_input_weight(ActivatedNeuron, FromPid) * Delta},
+          lists:foreach(
+            fun ({InputPid, R}) ->
+              InputPid ! {self(), R, neuron:get_input_weight(ActivatedNeuron, InputPid) * Delta}
+            end,
+            State#state.backprop_queue
+          ),
+          loop(State#state{neuron = neuron:update_weights(ActivatedNeuron, Delta), backprop_queue = []});
         false ->
-          loop(N)
+          % TODO: save Ref to be used to back-propagate delta
+          loop(State#state{neuron = N, backprop_queue = [{FromPid, Ref} | State#state.backprop_queue]})
       end;
-    Other -> io:format("Unhanled message: ~p~n", [-Other])
+    Other -> io:format("Unhanled message: ~p~n", [Other])
   end.
 
 
@@ -118,6 +135,8 @@ wait_responses(RefPids) -> wait_responses(RefPids, []).
 wait_responses([], Acc) -> lists:reverse(Acc);
 wait_responses([{P,R}|RefPids], Acc) ->
   receive
-    {P,R, Msg} -> wait_responses(lists:delete({P, R}, RefPids), [Msg | Acc]);
-    _ -> wait_responses(RefPids, Acc)
+    {P,R, Msg} -> wait_responses(lists:delete({P, R}, RefPids), [Msg | Acc])
+%%    _Other ->
+%%      self() ! Other,
+%%      wait_responses(RefPids, Acc)
   end.

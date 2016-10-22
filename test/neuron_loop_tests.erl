@@ -16,8 +16,6 @@ send_all_test() ->
   ?assertEqual([{ok,pong}, {ok, pong}, {ok,pong}, {ok, pong}, {ok,pong}], Resp).
 
 nxor_test() ->
-  io:format("Start Test~n"),
-
   {ok, I1} = neuron_loop:start(),
   {ok, I2} = neuron_loop:start(),
   {ok, H1} = neuron_loop:start(),
@@ -29,20 +27,30 @@ nxor_test() ->
   neuron_loop:addOutputs(H1, [O]),
   neuron_loop:addOutputs(H2, [O]),
 
-  neuron_loop:setBias(H1, -30),
-  neuron_loop:setWeight(H1,  I1, 20),
-  neuron_loop:setWeight(H1,  I2, 20),
-
-  neuron_loop:setBias(H2, 10),
-  neuron_loop:setWeight(H2,  I1, -20),
-  neuron_loop:setWeight(H2,  I2, -20),
-
-  neuron_loop:setBias(O, -10),
-  neuron_loop:setWeight(O,  H1, 20),
-  neuron_loop:setWeight(O,  H2, 20),
+%%  neuron_loop:setBias(H1, -30),
+%%  neuron_loop:setWeight(H1,  I1, 20),
+%%  neuron_loop:setWeight(H1,  I2, 20),
+%%
+%%  neuron_loop:setBias(H2, 10),
+%%  neuron_loop:setWeight(H2,  I1, -20),
+%%  neuron_loop:setWeight(H2,  I2, -20),
+%%
+%%  neuron_loop:setBias(O, -10),
+%%  neuron_loop:setWeight(O,  H1, 20),
+%%  neuron_loop:setWeight(O,  H2, 20),
 
   Wait = fun() -> timer:sleep(50) end,
 
+  lists:foreach(
+    fun(_) ->
+      neuron_loop:pass(I1, 0),
+      neuron_loop:pass(I2, 0),
+      Wait(),
+      A1 = neuron_loop:getActivation(O),
+      io:format("~n0 - 0 -> 1 ~p~n", [A1])
+    end,
+    lists:seq(1,50)
+  ),
   neuron_loop:pass(I1, 0),
   neuron_loop:pass(I2, 0),
   Wait(),
